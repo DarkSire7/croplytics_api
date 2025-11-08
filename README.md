@@ -34,8 +34,8 @@ You must use `git clone` (not download ZIP) to get the model files handled by Gi
 
 ```bash
 # Clone the repo
-git clone [https://github.com/your-username/croplytics-api.git](https://github.com/your-username/croplytics-api.git)
-cd croplytics-api
+git clone [https://github.com/Darksire7/croplytics_api.git](https://github.com/Darksire7/croplytics_api.git)
+cd croplytics_api
 ```
 
 ### 3. Set Up the Environment
