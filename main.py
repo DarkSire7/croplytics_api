@@ -4,9 +4,6 @@ import numpy as np
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-# --- 1. Define Input Data Models ---
-
-
 class SoilData(BaseModel):
     N: float
     P: float
@@ -15,7 +12,7 @@ class SoilData(BaseModel):
     humidity: float
     ph: float
     rainfall: float
-    location: str  # The regional filter
+    location: str
 
 
 class SoilHealthData(BaseModel):
@@ -25,16 +22,15 @@ class SoilHealthData(BaseModel):
     ph_val: float
 
 
-# --- 2. Initialize FastAPI App ---
+# Initialize FastAPI App
 app = FastAPI()
 
-# --- 3. Load All Your Models (M1 and M3) ---
 try:
-    # M1: XGBoost "Shortlister"
+    # M1
     model_m1_classifier = joblib.load("crop_recommender_model.joblib")
     m1_class_mapping = joblib.load("crop_class_mapping.joblib")
 
-    # M3: XGBoost "Yield Ranker"
+    # M3
     model_m3_yield = joblib.load("yield_model.joblib")
     crop_name_to_code = joblib.load("yield_class_mapping.joblib")
 
@@ -44,7 +40,7 @@ except FileNotFoundError as e:
     model_m1_classifier, m1_class_mapping = None, None
     model_m3_yield, crop_name_to_code = None, None
 
-# --- 4. Your Regional Database (M1 Filter) ---
+# M1 Filter
 REGIONAL_CROP_DATABASE = {
     "Andhra Pradesh": [
         "banana",
@@ -221,7 +217,7 @@ REGIONAL_CROP_DATABASE = {
     ],
 }
 
-# --- 5. API Endpoints ---
+# API Endpoints
 
 
 def get_regional_shortlist(state: str):
@@ -237,16 +233,15 @@ def get_recommendation(data: SoilData):
     This is the main endpoint that runs the M1 -> M3 pipeline.
     """
 
-    # --- STEP 1: REGIONAL FILTER ---
+    # REGIONAL FILTER
     regional_crops = get_regional_shortlist(data.location)
 
-    # --- STEP 2: M1 (XGBoost Classifier) to get Top 3 "Likely" Crops ---
+    # Top 3 "Likely" Crops
 
-    # Prepare non-scaled data for M1 (since it was trained on non-scaled)
+    # non-scaled data for M1
     input_df = pd.DataFrame([data.dict()])
     input_df_for_m1 = input_df.drop("location", axis=1)
 
-    # Get the "ugly" probabilities from XGBoost
     all_probabilities = model_m1_classifier.predict_proba(input_df_for_m1)[0]
 
     # Map scores to crop names
@@ -261,25 +256,22 @@ def get_recommendation(data: SoilData):
         if crop in all_crop_scores:
             regional_scores[crop] = all_crop_scores[crop]
 
-    # Sort by M1's score to get the Top 3 "most likely" candidates
+    # Sort by M1's score
     sorted_by_m1_score = sorted(
         regional_scores.items(), key=lambda item: item[1], reverse=True
     )
 
-    # This is our final shortlist of 3
+    # final shortlist of 3
     shortlist = [crop for crop, score in sorted_by_m1_score[:3]]
-    # --- STEP 3: M3 (XGBoost Regressor) to get Yield Rank ---
+    # Get Yield Rank
     final_rankings = []
 
-    # This is the non-scaled data for the M3 model
+    # Non-scaled data for the M3 model
     input_df_for_m3 = input_df.drop("location", axis=1)
 
     for crop in shortlist:
-        # Prepare data for M3: It needs the non-scaled data + the crop code
         m3_input = input_df_for_m3.copy()
 
-        # Add the 'crop_code' feature that M3 was trained on
-        # Use .get() for safety, defaulting to 0 if crop isn't in mapping
         m3_input["crop_code"] = list(crop_name_to_code.keys())[
             list(crop_name_to_code.values()).index(crop)
         ]
@@ -287,7 +279,7 @@ def get_recommendation(data: SoilData):
         # Predict the yield
         predicted_yield = model_m3_yield.predict(m3_input)[0]
 
-        # Add to our final list
+        # Add to final list
         final_rankings.append(
             {
                 "crop": crop,
@@ -312,7 +304,7 @@ def get_soil_health(data: SoilHealthData):
     """
     issues = []
 
-    # pH Analysis (example rules)
+    # pH Analysis
     if data.ph_val < 6.0:
         issues.append(f"Soil is too acidic (pH: {data.ph_val}).")
     elif data.ph_val > 7.5:
