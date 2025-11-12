@@ -23,7 +23,6 @@ class SoilHealthData(BaseModel):
     ph_val: float
 
 
-# Initialize FastAPI App
 app = FastAPI()
 
 try:
